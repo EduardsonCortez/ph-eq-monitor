@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
-# app.py — Flask web app wrapper for your PH Real-Time Earthquake Monitor
+# app.py (Imports Section)
+
 import os
 import time
-# I-check ang imports: dapat kasama ang timedelta at timezone
+import re # <--- Ito ang hiwalay na import para sa Regular Expressions
 from datetime import datetime, timedelta, timezone 
 from flask import Flask, render_template, send_from_directory, current_app
 import requests
@@ -12,11 +12,10 @@ import matplotlib.pyplot as plt
 import io
 import base64
 from bs4 import BeautifulSoup 
-import re # I-IMPORT ITO PARA SA MAS MATIBAY NA PAGHAHANAP
 
 # I-import ito para sa InsecureRequestWarning, na lalabas dahil sa verify=False
 import urllib3 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configuration via environment variables
 USGS_FEED_URL = os.getenv("USGS_FEED_URL",
