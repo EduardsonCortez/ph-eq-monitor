@@ -1,8 +1,9 @@
+
 #!/usr/bin/env python3
 # app.py — Flask web app wrapper for your PH Real-Time Earthquake Monitor
 import os
 import time
-from datetime import datetime, timedelta, timezone # I-import ang timezone
+from datetime import datetime
 from flask import Flask, render_template, send_from_directory, current_app
 import requests
 import folium
@@ -10,16 +11,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import io
 import base64
-from bs4 import BeautifulSoup # Import para sa scraping
+from bs4 import BeautifulSoup
 
 # Configuration via environment variables
 USGS_FEED_URL = os.getenv("USGS_FEED_URL",
     "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson")
+PHIVOLCS_JSON_CANDIDATES = [
+    "https://earthquake.phivolcs.dost.gov.ph/EQLatestFeed.php",
+    "https://earthquake.phivolcs.dost.gov.ph/EQLatest.php"
+]
 
-# NEW: PHIVOLCS URL na i-scrape
-PHIVOLCS_HTML_URL = "https://www.phivolcs.dost.gov.ph/index.php/earthquake/latest-earthquake-bulletin"
-
-# Bounding box para sa Pilipinas
 PH_LAT_MIN, PH_LAT_MAX = 4.5, 21.5
 PH_LON_MIN, PH_LON_MAX = 116.0, 127.5
 
@@ -32,9 +33,6 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 APP_AUTHOR = os.getenv("APP_AUTHOR", "Eduardson Cortez")
 
-# Timezone object para sa Philippine Standard Time (UTC+8)
-PST = timezone(timedelta(hours=8))
-
 # ---- Helper functions ----
 def fetch_usgs():
     try:
@@ -46,77 +44,33 @@ def fetch_usgs():
         return None
 
 def fetch_phivolcs():
-    """Fetches and scrapes PHIVOLCS data from their latest bulletin table."""
     events = []
     headers = {"User-Agent": "PH-EQ-Monitor/1.0"}
-    try:
-        r = requests.get(PHIVOLCS_HTML_URL, timeout=15, headers=headers, verify=False)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.content, 'html.parser')
-        
-        # NOTE: Tingnan ang PHIVOLCS site para makita ang tamang table class/id.
-        # Ito ay isang common guess; maaaring kailanganin ng adjustment.
-        table = soup.find('table', class_='table') 
-        
-        if not table:
-            current_app.logger.warning("PHIVOLCS table not found on page. Check HTML structure.")
-            return events
-            
-        rows = table.find_all('tr')
-        # Skip header row (index 0)
-        for row in rows[1:]:
-            cols = row.find_all('td')
-            # Check for minimum number of columns: Date, Time, Lat, Lon, Mag, Depth, Region, etc.
-            if len(cols) >= 8: 
-                try:
-                    # I-extract ang data base sa posisyon
-                    date_str = cols[1].text.strip()
-                    time_str = cols[2].text.strip()
-                    latitude = cols[3].text.strip()
-                    longitude = cols[4].text.strip()
-                    magnitude = cols[5].text.strip()
-                    depth = cols[6].text.strip().replace(' km', '')
-                    region = cols[7].text.strip()
-
-                    # I-combine ang Date at Time at i-parse bilang PST
-                    dt_obj_pst = datetime.strptime(f"{date_str} {time_str}", '%Y-%m-%d %H:%M:%S').replace(tzinfo=PST)
-                    
-                    # I-convert sa UTC time
-                    dt_obj_utc = dt_obj_pst.astimezone(timezone.utc)
-                    
-                    # I-convert sa Epoch (milliseconds) - katulad ng USGS format
-                    epoch_time_ms = int(dt_obj_utc.timestamp() * 1000)
-                    
-                    # Gawing float ang numeric values
-                    mag_float = float(magnitude) if magnitude and magnitude != 'n/a' else None
-                    depth_float = float(depth) if depth and depth != 'n/a' else None
-                    lat_float = float(latitude) if latitude else None
-                    lon_float = float(longitude) if longitude else None
-
-                    if lat_float and lon_float:
+    for url in PHIVOLCS_JSON_CANDIDATES:
+        try:
+            r = requests.get(url, timeout=10, headers=headers)
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, dict) and "features" in data:
+                for f in data["features"]:
+                    props = f.get("properties", {})
+                    geom = f.get("geometry", {})
+                    coords = geom.get("coordinates") or []
+                    if len(coords) >= 2:
                         events.append({
-                            # Gumawa ng unique ID, dahil walang official ID ang scraped data
-                            "id": f"PHIVOLCS_SCRAPE_{date_str}_{time_str}_{latitude}_{longitude}",
-                            "mag": mag_float,
-                            "place": region,
-                            "time": epoch_time_ms,
-                            "lat": lat_float,
-                            "lon": lon_float,
-                            "depth": depth_float,
-                            "source": "PHIVOLCS (Scraped)"
+                            "id": f.get("id", ""),
+                            "mag": props.get("mag"),
+                            "place": props.get("place"),
+                            "time": props.get("time"),
+                            "lat": coords[1],
+                            "lon": coords[0],
+                            "depth": coords[2] if len(coords) > 2 else None,
+                            "source": "PHIVOLCS"
                         })
-                except Exception as parse_ex:
-                    current_app.logger.debug(f"PHIVOLCS data row parsing error: {parse_ex} in row: {cols}")
-                    continue
-
-        # Tiyakin na ang events ay nasa PH bounding box
-        events = [e for e in events if is_in_ph(e['lat'], e['lon'])]
-        
-    except Exception as ex:
-        current_app.logger.warning("PHIVOLCS scraping error: %s", ex)
-        
+                return events
+        except Exception:
+            continue
     return events
-
 
 def is_in_ph(lat, lon):
     try:
@@ -149,69 +103,31 @@ def extract_usgs_events(usgs_json):
 
 def merge_events(usgs_events, phivolcs_events):
     combined = usgs_events[:]
-    # Gumawa ng set para iwasan ang duplicates batay sa location at magnitude
-    # Gumamit ng 3 decimal places para maging mas accurate sa pag-deduplicate
-    existing = {(round(float(e["lat"]),3), round(float(e["lon"]),3), round(float(e["mag"]),1)) for e in combined if e.get("lat") and e.get("lon")}
-    
+    existing = {(round(float(e["lat"]),2), round(float(e["lon"]),2), round(float(e["mag"]),1)) for e in combined if e.get("lat") and e.get("lon")}
     for e in phivolcs_events:
-        try:
-            key = (round(float(e["lat"]),3), round(float(e["lon"]),3), round(float(e["mag"]),1))
-            if key not in existing:
-                combined.append(e)
-                existing.add(key)
-        except:
-            # Skip invalid event data
-            continue 
-            
-    # I-sort ayon sa pinakabagong oras
+        key = (round(float(e["lat"]),2), round(float(e["lon"]),2), round(float(e["mag"]),1))
+        if key not in existing:
+            combined.append(e)
+            existing.add(key)
     combined.sort(key=lambda x: x.get("time") or 0, reverse=True)
     return combined
-
-def get_marker_style(mag):
-    """Kumuha ng radius at color batay sa magnitude"""
-    mag = float(mag or 0)
-    if mag >= 6.0:
-        return {"color": "red", "radius": max(6, 6 + mag*0.8)}
-    elif mag >= 5.0:
-        return {"color": "darkred", "radius": max(5, 5 + mag*0.7)}
-    elif mag >= 4.0:
-        return {"color": "orange", "radius": max(4, 4 + mag*0.6)}
-    elif mag >= 3.0:
-        return {"color": "blue", "radius": max(3, 3 + mag*0.5)}
-    else:
-        return {"color": "lightblue", "radius": 4}
 
 def build_map(events):
     m = folium.Map(location=[12.8797, 121.7740], zoom_start=5)
     for e in events:
-        try:
-            mag = float(e.get("mag") or 0)
-            style = get_marker_style(mag)
-            
-            # I-format ang time
-            dt_utc = datetime.fromtimestamp(e.get('time') / 1000, tz=timezone.utc)
-            time_display = dt_utc.strftime('%Y-%m-%d %H:%M:%S UTC')
-            
-            popup = f"""
-            <b>Magnitude:</b> {mag}<br>
-            <b>Place:</b> {e.get('place','N/A')}<br>
-            <b>Time:</b> {time_display}<br>
-            <b>Source:</b> {e.get('source')}
-            """
-            
-            if e.get("lat") and e.get("lon"):
-                folium.CircleMarker(
-                    location=[float(e["lat"]), float(e["lon"])],
-                    radius=style['radius'],
-                    color=style['color'],
-                    fill=True,
-                    fill_color=style['color'],
-                    fill_opacity=0.7,
-                    popup=popup
-                ).add_to(m)
-        except:
-            continue
-            
+        mag = float(e.get("mag") or 0)
+        color = "red" if mag >= 6 else "orange" if mag >= 4 else "blue"
+        popup = f"<b>Magnitude:</b> {mag}<br><b>Place:</b> {e.get('place','N/A')}"
+        if e.get("lat") and e.get("lon"):
+            folium.CircleMarker(
+                location=[float(e["lat"]), float(e["lon"])],
+                radius=max(4, 5 + mag),
+                color=color,
+                fill=True,
+                fill_color=color,
+                fill_opacity=0.7,
+                popup=popup
+            ).add_to(m)
     os.makedirs("static", exist_ok=True)
     m.save(MAP_STATIC_PATH)
     return MAP_STATIC_PATH
@@ -219,31 +135,18 @@ def build_map(events):
 def build_trend_img(events, max_points=30):
     if not events:
         return ""
-    
-    # Siguraduhin na 'mag' ay float at 'time' ay integer
     df = pd.DataFrame(events)
-    df['mag'] = pd.to_numeric(df['mag'], errors='coerce')
-    df['time'] = pd.to_numeric(df['time'], errors='coerce')
-    
-    # I-filter ang mga row na may valid data
-    df = df.dropna(subset=['mag', 'time'])
-    
-    df['dt'] = pd.to_datetime(df['time'], unit='ms', utc=True)
-    
-    # I-sort mula sa pinakamatanda hanggang pinakabago para sa plot
-    df = df.sort_values(by='dt')
-    
+    df['dt'] = pd.to_datetime(df['time'], unit='ms', utc=True, errors='coerce')
+    df = df.dropna(subset=['dt'])
     if len(df) > max_points:
         df = df.tail(max_points)
-        
     plt.figure(figsize=(8,3.2))
-    plt.plot(df['dt'], df['mag'], marker='o', linewidth=1.5, markersize=4)
+    plt.plot(df['dt'], df['mag'].astype(float), marker='o')
     plt.title('Recent Philippine Earthquakes — Magnitude over Time')
     plt.xlabel('Time (UTC)')
     plt.ylabel('Magnitude')
     plt.grid(True, linestyle='--', linewidth=0.4)
     plt.tight_layout()
-    
     buf = io.BytesIO()
     plt.savefig(buf, format='png', dpi=130)
     plt.close()
@@ -253,29 +156,14 @@ def build_trend_img(events, max_points=30):
 def build_table_html(events, max_rows=50):
     if not events:
         return ""
-    
     df = pd.DataFrame(events)
-    
-    # Tiyakin na 'mag' ay float at 'time' ay integer
-    df['mag'] = pd.to_numeric(df['mag'], errors='coerce').round(1)
-    df['time'] = pd.to_numeric(df['time'], errors='coerce')
-    df['depth'] = pd.to_numeric(df['depth'], errors='coerce').round(1)
-    df['lat'] = pd.to_numeric(df['lat'], errors='coerce').round(3)
-    df['lon'] = pd.to_numeric(df['lon'], errors='coerce').round(3)
-
-    # I-convert ang time sa readable UTC string
     df['Time (UTC)'] = pd.to_datetime(df['time'], unit='ms', utc=True, errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
-    
     df['Magnitude'] = df['mag']
     df['Place'] = df['place']
     df['Depth (km)'] = df['depth']
     df['Lat'] = df['lat']
     df['Lon'] = df['lon']
-    
-    # I-arrange ang columns
     out = df[['Magnitude','Place','Depth (km)','Time (UTC)','Lat','Lon']].head(max_rows)
-    
-    # I-convert sa HTML table
     return out.to_html(classes="quake-table", index=False, border=0)
 
 def load_logged_ids():
@@ -293,17 +181,12 @@ def check_and_alert(events):
     logged = load_logged_ids()
     new_alert = False
     for e in events:
-        # Gumawa ng unique ID kung wala
         eid = e.get("id") or f"{e.get('source')}_{e.get('lat')}_{e.get('lon')}_{e.get('time')}"
         mag = float(e.get("mag") or 0)
-        
-        # Check kung bagong event at lumampas sa alert magnitude
         if eid not in logged and mag >= ALERT_MAGNITUDE:
             new_alert = True
             log_event(eid)
             logged.add(eid)
-            # You can add Telegram notification logic here if needed
-            
     return new_alert
 
 # ---- Flask app ----
@@ -315,34 +198,19 @@ def static_files(filename):
 
 @app.route("/")
 def index():
-    # 1. Fetch data
     usgs = fetch_usgs()
     us_events = extract_usgs_events(usgs)
-    ph_events = fetch_phivolcs() # ITO ang gagamit ng scraping
-    
-    # 2. Merge and clean data
+    ph_events = fetch_phivolcs()
     all_events = merge_events(us_events, ph_events)
-    
-    # 3. Build UI components
     map_path = build_map(all_events)
     chart_b64 = build_trend_img(all_events)
     table_html = build_table_html(all_events)
-    
-    # 4. Check for alerts (Alert logic)
-    # NOTE: Kung gusto mong gamitin ang index.html na may sound alert, palitan ang 
-    # template name sa 'index.html' at tiyakin na mayroong 'recent_quake_detected' 
-    # ang index.html (gaya ng nakita ko sa iyong template)
-    alert_trigger = check_and_alert(all_events)  
-    
+    alert_trigger = check_and_alert(all_events)  # True if new quake detected
+
     updated = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
     plotted = min(len(all_events), 30)
-    
-    # 5. Render template
-    # Piliin ang dashboard.html o index.html (kung may sound alert)
-    template_name = "index.html" if alert_trigger else "dashboard.html"
-    
     return render_template(
-        template_name,
+        "dashboard.html",
         map_file="/" + map_path,
         chart_b64=chart_b64,
         table_html=table_html,
@@ -351,9 +219,9 @@ def index():
         refresh_minutes=REFRESH_INTERVAL//60,
         plotted=plotted,
         author=APP_AUTHOR,
-        # Ito ang kailangan ng index.html para i-trigger ang sound
-        recent_quake_detected=alert_trigger 
+        alert_trigger=alert_trigger  # 👈 passes to dashboard
     )
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=True)
+
