@@ -21,7 +21,8 @@ USGS_FEED_URL = os.getenv("USGS_FEED_URL",
     "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson")
 
 # NEW: PHIVOLCS URL na i-scrape
-PHIVOLCS_HTML_URL = "https://www.phivolcs.dost.gov.ph/index.php/earthquake/latest-earthquake-bulletin"
+PHIVOLCS_HTML_URL = "https://earthquake.phivolcs.dost.gov.ph/"
+
 
 # Bounding box para sa Pilipinas
 PH_LAT_MIN, PH_LAT_MAX = 4.5, 21.5
