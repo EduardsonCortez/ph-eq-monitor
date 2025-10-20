@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 # app.py — Flask web app wrapper for your PH Real-Time Earthquake Monitor
 import os
@@ -68,7 +69,6 @@ def fetch_phivolcs():
                         })
                 return events
         except Exception:
-            # Mag-try sa susunod na URL kung may error sa kasalukuyan
             continue
     return events
 
@@ -205,7 +205,7 @@ def index():
     map_path = build_map(all_events)
     chart_b64 = build_trend_img(all_events)
     table_html = build_table_html(all_events)
-    alert_trigger = check_and_alert(all_events) # True if new quake detected
+    alert_trigger = check_and_alert(all_events)  # True if new quake detected
 
     updated = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
     plotted = min(len(all_events), 30)
@@ -219,8 +219,9 @@ def index():
         refresh_minutes=REFRESH_INTERVAL//60,
         plotted=plotted,
         author=APP_AUTHOR,
-        alert_trigger=alert_trigger # 👈 passes to dashboard
+        alert_trigger=alert_trigger  # 👈 passes to dashboard
     )
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=True)
+
