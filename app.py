@@ -50,7 +50,7 @@ def fetch_phivolcs():
     events = []
     headers = {"User-Agent": "PH-EQ-Monitor/1.0"}
     try:
-        r = requests.get(PHIVOLCS_HTML_URL, timeout=15, headers=headers)
+        r = requests.get(PHIVOLCS_HTML_URL, timeout=15, headers=headers, verify=False)
         r.raise_for_status()
         soup = BeautifulSoup(r.content, 'html.parser')
         
