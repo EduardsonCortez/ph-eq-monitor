@@ -61,7 +61,7 @@ def fetch_phivolcs():
         soup = BeautifulSoup(r.content, 'html.parser')
         
         # NOTE: Tingnan ang PHIVOLCS site para makita ang tamang table class/id.
-        table = soup.find('table', class_='table') 
+        table = soup.find('table')
         
         if not table:
             current_app.logger.warning("PHIVOLCS table not found on page. Check HTML structure.")
