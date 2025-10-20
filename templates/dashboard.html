@@ -9,47 +9,60 @@
 <meta http-equiv="refresh" content="{{ refresh_seconds }}">
 </head>
 <body>
-  <header class="site-header">
-    <div class="brand">
-      <h1>PH Earthquake Monitor</h1>
-      <p class="meta">Data: USGS + PHIVOLCS (when available) • Updated: {{ updated }}</p>
-    </div>
-    <div class="header-right">
-      <div class="refresh">Auto-refresh: {{ refresh_minutes }} min</div>
-    </div>
-  </header>
+  <header class="site-header">
+    <div class="brand">
+      <h1>PH Earthquake Monitor</h1>
+      <p class="meta">Data: USGS + PHIVOLCS (when available) • Updated: {{ updated }}</p>
+    </div>
+    <div class="header-right">
+      <div class="refresh">Auto-refresh: {{ refresh_minutes }} min</div>
+    </div>
+  </header>
 
-  <main class="container">
-    <section class="left card">
-      <h2>Interactive Map</h2>
-      <iframe class="map-frame" src="{{ map_file }}"></iframe>
-    </section>
+  <main class="container">
+    <section class="left card">
+      <h2>Interactive Map</h2>
+      <iframe class="map-frame" src="{{ map_file }}"></iframe>
+    </section>
 
-    <aside class="right">
-      <div class="card">
-        <h3>Magnitude Trend</h3>
-        {% if chart_b64 %}
-          <img src="data:image/png;base64,{{ chart_b64 }}" style="width:100%; border-radius:6px;" alt="magnitude chart">
-        {% else %}
-          <p>No data to plot.</p>
-        {% endif %}
-        <div class="hint">Last {{ plotted }} events plotted</div>
-      </div>
+    <aside class="right">
+      <div class="card">
+        <h3>Magnitude Trend</h3>
+        {% if chart_b64 %}
+          <img src="data:image/png;base64,{{ chart_b64 }}" style="width:100%; border-radius:6px;" alt="magnitude chart">
+        {% else %}
+          <p>No data to plot.</p>
+        {% endif %}
+        <div class="hint">Last {{ plotted }} events plotted</div>
+      </div>
 
-      <div class="card">
-        <h3>Recent Events</h3>
-        {% if table_html %}
-          {{ table_html | safe }}
-        {% else %}
-          <p>No recent Philippine earthquakes found.</p>
-        {% endif %}
-      </div>
-    </aside>
-  </main>
+      <div class="card">
+        <h3>Recent Events</h3>
+        {% if table_html %}
+          {{ table_html | safe }}
+        {% else %}
+          <p>No recent Philippine earthquakes found.</p>
+        {% endif %}
+        
+        <div class="hint" style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+            <p style="font-size: 13px; color: var(--accent); margin: 5px 0 0;">
+               **MAHALAGANG PAALALA TUNGKOL SA DATA:**
+            </p>
+            <p style="font-size: 12px; color: var(--muted); margin: 5px 0;">
+               Ang monitor na ito ay sumasalamin sa **lokasyon** ng mga lindol, ngunit ang Magnitude ng maliliit na lindol ay maaaring hindi tugma sa opisyal na bilang ng PHIVOLCS dahil sa pagkakaiba ng data feeds.
+            </p>
+            <p style="font-size: 12px; color: var(--muted); margin: 5px 0;">
+               Para sa **kumpletong at opisyal na datos** ng lahat ng lindol (kasama ang pinakamaliliit), mangyaring bisitahin ang: 
+               <a href="https://earthquake.phivolcs.dost.gov.ph/" target="_blank" style="color: #007bff; text-decoration: none;">PHIVOLCS Latest Earthquake Information</a>
+            </p>
+        </div>
+              </div>
+    </aside>
+  </main>
 
-  <footer class="site-footer">
-    <div>Built & maintained by <strong>{{ author }}</strong> — use for monitoring and awareness, not prediction.</div>
-    <div class="small">© {{ updated[:4] }} {{ author }}</div>
-  </footer>
+  <footer class="site-footer">
+    <div>Built & maintained by <strong>{{ author }}</strong> — use for monitoring and awareness, not prediction.</div>
+    <div class="small">© {{ updated[:4] }} {{ author }}</div>
+  </footer>
 </body>
 </html>
