@@ -1,5 +1,5 @@
 <!-- Siren sound -->
-  <audio id="siren" src="/static/sounds/siren.mp3" preload="auto"></audio>
+  <audio id="siren" src="/static/audio/siren.mp3" preload="auto"></audio>
 
   <!-- Alert Overlay -->
   <div id="alert-overlay" style="display:none;
