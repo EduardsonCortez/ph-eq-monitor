@@ -1,10 +1,13 @@
-# app.py (Imports Section)
+#!/usr/bin/env python3
+# app.py — Flask web app wrapper for your PH Real-Time Earthquake Monitor
 
 import os
-import time
-import re # <--- Ito ang hiwalay na import para sa Regular Expressions
+import time # <--- DAPAT NANDITO ITO!
+import re # Ito ang hiwalay na import para sa Regular Expressions
+
 from datetime import datetime, timedelta, timezone 
 from flask import Flask, render_template, send_from_directory, current_app
+
 import requests
 import folium
 import pandas as pd
