@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PH Earthquake Monitor</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<meta http-equiv="refresh" content="{{ refresh_seconds }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <h1>PH Earthquake Monitor</h1>
+      <p class="meta">Data: USGS + PHIVOLCS (when available) • Updated: {{ updated }}</p>
+    </div>
+    <div class="header-right">
+      <div class="refresh">Auto-refresh: {{ refresh_minutes }} min</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="left card">
+      <h2>Interactive Map</h2>
+      <iframe class="map-frame" src="{{ map_file }}"></iframe>
+    </section>
+
+    <aside class="right">
+      <div class="card">
+        <h3>Magnitude Trend</h3>
+        {% if chart_b64 %}
+          <img src="data:image/png;base64,{{ chart_b64 }}" style="width:100%; border-radius:6px;" alt="magnitude chart">
+        {% else %}
+          <p>No data to plot.</p>
+        {% endif %}
+        <div class="hint">Last {{ plotted }} events plotted</div>
+      </div>
+
+      <div class="card">
+        <h3>Recent Events</h3>
+        {% if table_html %}
+          {{ table_html | safe }}
+        {% else %}
+          <p>No recent Philippine earthquakes found.</p>
+        {% endif %}
+      </div>
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <div>Built & maintained by <strong>{{ author }}</strong> — use for monitoring and awareness, not prediction.</div>
+    <div class="small">© {{ updated[:4] }} {{ author }}</div>
+  </footer>
+</body>
+</html>
