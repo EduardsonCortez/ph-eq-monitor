@@ -1,1 +1,19 @@
+<!-- Siren sound -->
+  <audio id="siren" src="/static/sounds/siren.mp3" preload="auto"></audio>
 
+  <!-- Alert Overlay -->
+  <div id="alert-overlay" style="display:none;
+       position:fixed; inset:0;
+       background:rgba(0,0,0,0.8);
+       color:white; display:flex;
+       justify-content:center;
+       align-items:center;
+       flex-direction:column;
+       z-index:9999;">
+    <h2>🚨 Earthquake Detected!</h2>
+    <button id="stop-sound"
+      style="background:#e74c3c; color:white;
+             border:none; padding:12px 20px;
+             border-radius:8px; font-size:1rem;
+             cursor:pointer;">OK</button>
+  </div>
